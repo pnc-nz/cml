@@ -1,5 +1,4 @@
 const fetch = require('node-fetch');
-const FormData = require('form-data');
 const { URL } = require('url');
 const { ProxyAgent } = require('proxy-agent');
 const { logger } = require('../logger');
@@ -14,8 +13,7 @@ const {
   BUILD_SOURCEVERSION,
   BUILD_SOURCEBRANCH,
   BUILD_BUILDID,
-  SYSTEM_DEFINITIONID,
-  TF_BUILD
+  SYSTEM_DEFINITIONID
 } = process.env;
 
 const API_VER = '7.1';
@@ -48,7 +46,10 @@ class AzureDevOps {
 
     // Try to infer from repo URL
     const url = new URL(this.repo);
-    if (url.hostname === 'dev.azure.com' || url.hostname.includes('visualstudio.com')) {
+    if (
+      url.hostname === 'dev.azure.com' ||
+      url.hostname.includes('visualstudio.com')
+    ) {
       // Format: https://dev.azure.com/{organization}/{project}/_git/{repo}
       // or: https://{organization}.visualstudio.com/{project}/_git/{repo}
       const pathParts = url.pathname.split('/').filter(Boolean);
@@ -91,7 +92,10 @@ class AzureDevOps {
       const pathParts = url.pathname.split('/').filter(Boolean);
       if (url.hostname === 'dev.azure.com' && pathParts.length >= 2) {
         this._project = pathParts[1];
-      } else if (url.hostname.includes('visualstudio.com') && pathParts.length >= 1) {
+      } else if (
+        url.hostname.includes('visualstudio.com') &&
+        pathParts.length >= 1
+      ) {
         this._project = pathParts[0];
       } else {
         const tfsMatch = url.pathname.match(/\/tfs\/[^/]+\/([^/]+)\//);
@@ -125,23 +129,35 @@ class AzureDevOps {
     // Query API to get repository ID
     const project = await this.getProject();
     const repoUrl = new URL(this.repo);
-    const repoName = repoUrl.pathname.split('/').filter(Boolean).pop().replace('.git', '');
+    const repoName = repoUrl.pathname
+      .split('/')
+      .filter(Boolean)
+      .pop()
+      .replace('.git', '');
 
     // Try direct lookup first
     try {
-      const endpoint = `/${project}/_apis/git/repositories/${encodeURIComponent(repoName)}?api-version=${API_VER}`;
+      const endpoint = `/${project}/_apis/git/repositories/${encodeURIComponent(
+        repoName
+      )}?api-version=${API_VER}`;
       const response = await this.request({ endpoint, method: 'GET' });
       this._repositoryId = response.id;
       return this._repositoryId;
     } catch (err) {
       // Fallback: list repositories and find by name or remote URL
-      logger.debug(`Direct repository lookup failed, trying list: ${err.message}`);
+      logger.debug(
+        `Direct repository lookup failed, trying list: ${err.message}`
+      );
       const listEndpoint = `/${project}/_apis/git/repositories?api-version=${API_VER}`;
-      const listResponse = await this.request({ endpoint: listEndpoint, method: 'GET' });
-      
+      const listResponse = await this.request({
+        endpoint: listEndpoint,
+        method: 'GET'
+      });
       // Try to match by name
       const matchedRepo = listResponse.value?.find(
-        (repo) => repo.name === repoName || repo.name.toLowerCase() === repoName.toLowerCase()
+        (repo) =>
+          repo.name === repoName ||
+          repo.name.toLowerCase() === repoName.toLowerCase()
       );
       
       if (matchedRepo) {
