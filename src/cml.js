@@ -14,6 +14,7 @@ const { parseCommentTarget } = require('./commenttarget');
 const Gitlab = require('./drivers/gitlab');
 const Github = require('./drivers/github');
 const BitbucketCloud = require('./drivers/bitbucket_cloud');
+const AzureDevOps = require('./drivers/azure_devops');
 const {
   upload,
   exec,
@@ -22,7 +23,14 @@ const {
   waitForever
 } = require('./utils');
 const { Watermark } = require('./watermark');
-const { GITHUB_REPOSITORY, CI_PROJECT_URL, BITBUCKET_REPO_UUID } = process.env;
+const {
+  GITHUB_REPOSITORY,
+  CI_PROJECT_URL,
+  BITBUCKET_REPO_UUID,
+  BUILD_REPOSITORY_URI,
+  SYSTEM_COLLECTIONURI,
+  TF_BUILD
+} = process.env;
 
 const GIT_USER_NAME = 'Olivaw[bot]';
 const GIT_USER_EMAIL = 'olivaw@iterative.ai';
@@ -30,6 +38,7 @@ const GIT_REMOTE = 'origin';
 const GITHUB = 'github';
 const GITLAB = 'gitlab';
 const BB = 'bitbucket';
+const AZURE_DEVOPS = 'azure_devops';
 
 const watcher = chokidar.watch([], {
   persistent: true,
@@ -60,10 +69,18 @@ const inferToken = () => {
     repo_token: repoToken,
     GITHUB_TOKEN,
     GITLAB_TOKEN,
-    BITBUCKET_TOKEN
+    BITBUCKET_TOKEN,
+    AZURE_DEVOPS_TOKEN,
+    SYSTEM_ACCESSTOKEN
   } = process.env;
   return (
-    REPO_TOKEN || repoToken || GITHUB_TOKEN || GITLAB_TOKEN || BITBUCKET_TOKEN
+    REPO_TOKEN ||
+    repoToken ||
+    GITHUB_TOKEN ||
+    GITLAB_TOKEN ||
+    BITBUCKET_TOKEN ||
+    AZURE_DEVOPS_TOKEN ||
+    SYSTEM_ACCESSTOKEN
   );
 };
 
@@ -74,11 +91,19 @@ const inferDriver = (opts = {}) => {
     if (url.hostname === 'github.com') return GITHUB;
     if (url.hostname === 'gitlab.com') return GITLAB;
     if (/bitbucket\.(com|org)/.test(url.hostname)) return BB;
+    if (
+      url.hostname === 'dev.azure.com' ||
+      url.hostname.includes('visualstudio.com') ||
+      url.pathname.includes('/tfs/')
+    )
+      return AZURE_DEVOPS;
   }
 
   if (GITHUB_REPOSITORY) return GITHUB;
   if (CI_PROJECT_URL) return GITLAB;
   if (BITBUCKET_REPO_UUID) return BB;
+  if (TF_BUILD || BUILD_REPOSITORY_URI || SYSTEM_COLLECTIONURI)
+    return AZURE_DEVOPS;
 };
 
 const fixGitSafeDirectory = () => {
@@ -161,6 +186,7 @@ class CML {
     if (driver === GITHUB) return new Github({ repo, token });
     if (driver === GITLAB) return new Gitlab({ repo, token });
     if (driver === BB) return new BitbucketCloud({ repo, token });
+    if (driver === AZURE_DEVOPS) return new AzureDevOps({ repo, token });
 
     throw new Error(`driver ${driver} unknown!`);
   }
