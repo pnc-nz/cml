@@ -159,7 +159,7 @@ class AzureDevOps {
           repo.name === repoName ||
           repo.name.toLowerCase() === repoName.toLowerCase()
       );
-      
+
       if (matchedRepo) {
         this._repositoryId = matchedRepo.id;
         return this._repositoryId;
@@ -168,7 +168,9 @@ class AzureDevOps {
       // If still not found, try matching by remote URL
       const repoRemoteMatch = listResponse.value?.find((repo) => {
         const repoRemoteUrl = repo.remoteUrl || repo.webUrl;
-        return repoRemoteUrl && this.repo.includes(repoRemoteUrl.split('/').pop());
+        return (
+          repoRemoteUrl && this.repo.includes(repoRemoteUrl.split('/').pop())
+        );
       });
 
       if (repoRemoteMatch) {
@@ -176,7 +178,9 @@ class AzureDevOps {
         return this._repositoryId;
       }
 
-      throw new Error(`Repository "${repoName}" not found in project "${project}"`);
+      throw new Error(
+        `Repository "${repoName}" not found in project "${project}"`
+      );
     }
   }
 
@@ -233,13 +237,17 @@ class AzureDevOps {
         );
         if (hasCommit) {
           prsWithCommit.push({
-            url: pr.url.replace('_apis/git/pullRequests', '_git').replace(/\?.*$/, ''),
+            url: pr.url
+              .replace('_apis/git/pullRequests', '_git')
+              .replace(/\?.*$/, ''),
             source: pr.sourceRefName?.replace('refs/heads/', ''),
             target: pr.targetRefName?.replace('refs/heads/', '')
           });
         }
       } catch (err) {
-        logger.debug(`Failed to get commits for PR ${pr.pullRequestId}: ${err.message}`);
+        logger.debug(
+          `Failed to get commits for PR ${pr.pullRequestId}: ${err.message}`
+        );
       }
     }
 
@@ -253,6 +261,11 @@ class AzureDevOps {
   async upload(opts = {}) {
     const project = await this.getProject();
     const { size, mime, data } = await fetchUploadData(opts);
+    logger.debug(`Project: ${project}`);
+    logger.debug(
+      `Uploading file to Azure DevOps, size: ${size}, mime: ${mime}`
+    );
+    logger.debug(`Data: ${data}`);
 
     // Use Azure DevOps Artifacts API to upload
     // This requires a build context, so we'll use a workaround with storage
@@ -260,6 +273,10 @@ class AzureDevOps {
     const chunks = [];
     for await (const chunk of data) chunks.push(chunk);
     const buffer = Buffer.concat(chunks);
+    logger.debug(`Buffer: ${buffer}`);
+    logger.debug(`Buffer length: ${buffer.length}`);
+    logger.debug(`Buffer toString: ${buffer.toString()}`);
+    logger.debug(`Buffer toJSON: ${buffer.toJSON()}`);
 
     // Use Universal Packages or Artifacts API
     // As a fallback, we can use external storage or return a data URI
@@ -273,7 +290,9 @@ class AzureDevOps {
   }
 
   async runnerToken() {
-    throw new Error('Azure DevOps does not support runner token retrieval via API!');
+    throw new Error(
+      'Azure DevOps does not support runner token retrieval via API!'
+    );
   }
 
   async registerRunner(opts = {}) {
@@ -285,7 +304,9 @@ class AzureDevOps {
   }
 
   async startRunner(opts) {
-    throw new Error('Azure DevOps self-hosted runners must be configured manually!');
+    throw new Error(
+      'Azure DevOps self-hosted runners must be configured manually!'
+    );
   }
 
   async runners(opts = {}) {
@@ -328,7 +349,9 @@ class AzureDevOps {
       });
     }
 
-    return response.url.replace('_apis/git/pullRequests', '_git').replace(/\?.*$/, '');
+    return response.url
+      .replace('_apis/git/pullRequests', '_git')
+      .replace(/\?.*$/, '');
   }
 
   async prAutoMerge({ pullRequestId, mergeMode, mergeMessage }) {
@@ -336,7 +359,9 @@ class AzureDevOps {
     const repositoryId = await this.getRepositoryId();
 
     if (mergeMode === 'rebase') {
-      throw new Error(`Rebase auto-merge mode not implemented for Azure DevOps`);
+      throw new Error(
+        `Rebase auto-merge mode not implemented for Azure DevOps`
+      );
     }
 
     const endpoint = `/${project}/_apis/git/repositories/${repositoryId}/pullRequests/${pullRequestId}?api-version=${API_VER}`;
@@ -345,7 +370,8 @@ class AzureDevOps {
         id: 'current-user' // This would need actual user ID in real implementation
       },
       completionOptions: {
-        mergeCommitMessage: mergeMessage || `Auto-merged via CML (${mergeMode})`,
+        mergeCommitMessage:
+          mergeMessage || `Auto-merged via CML (${mergeMode})`,
         squashMerge: mergeMode === 'squash',
         deleteSourceBranch: true
       }
@@ -412,7 +438,11 @@ class AzureDevOps {
     // Azure DevOps PR comments are added as threads
     // First, check if there's an existing thread we should update
     const threadsEndpoint = `/${project}/_apis/git/repositories/${repositoryId}/pullRequests/${prNumber}/threads?api-version=${API_VER}`;
-    const threads = await this.request({ endpoint: threadsEndpoint, method: 'GET' });
+    const threads = await this.request({
+      endpoint: threadsEndpoint,
+      method: 'GET'
+    });
+    logger.debug(`Threads: ${threads}`);
 
     // Create a new thread for the comment
     const endpoint = `/${project}/_apis/git/repositories/${repositoryId}/pullRequests/${prNumber}/threads?api-version=${API_VER}`;
@@ -428,6 +458,7 @@ class AzureDevOps {
     });
 
     const response = await this.request({ endpoint, method: 'POST', body });
+    logger.debug(`Response: ${response}`);
 
     // Return URL to the PR thread
     const prUrl = this.repo.replace('_git', '_pullrequest');
@@ -443,7 +474,10 @@ class AzureDevOps {
 
     // Get the thread to find the comment ID
     const threadEndpoint = `/${project}/_apis/git/repositories/${repositoryId}/pullRequests/${prNumber}/threads/${threadId}?api-version=${API_VER}`;
-    const thread = await this.request({ endpoint: threadEndpoint, method: 'GET' });
+    const thread = await this.request({
+      endpoint: threadEndpoint,
+      method: 'GET'
+    });
 
     if (!thread.comments || thread.comments.length === 0) {
       throw new Error('Thread has no comments to update');
@@ -502,7 +536,9 @@ class AzureDevOps {
 
     return (response.value || []).map((pr) => {
       return {
-        url: pr.url.replace('_apis/git/pullRequests', '_git').replace(/\?.*$/, ''),
+        url: pr.url
+          .replace('_apis/git/pullRequests', '_git')
+          .replace(/\?.*$/, ''),
         source: pr.sourceRefName?.replace('refs/heads/', ''),
         target: pr.targetRefName?.replace('refs/heads/', '')
       };
@@ -531,7 +567,10 @@ class AzureDevOps {
     }
 
     const rerunEndpoint = `/${project}/_apis/build/builds?api-version=${API_VER}`;
-    const build = await this.request({ endpoint: `${endpoint}`, method: 'GET' });
+    const build = await this.request({
+      endpoint: `${endpoint}`,
+      method: 'GET'
+    });
     await this.request({
       endpoint: rerunEndpoint,
       method: 'POST',
